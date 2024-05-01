@@ -5,7 +5,7 @@ I implemented a regressor and three classifiers (one binary logistic and two mul
 
 The Orthogonal Distance algorithm uses the quasi-chi-squared as the cost function instead of the least-square method. The quasi-chi-squared” converges to conventional chi-square for zero uncertainties in the independent variables x.
 
-The quasi-chi-squared accounts for uncertainties in both independent and dependent variables. The classes are essentially wrappers of the scipy.odr classes, which in turn are wrapper of the Fortran77 rountines in the ODRpack. In contrast to many linear and logistic regression implementation, whose solver is based on the gradient search method, ODRpack uses an anefficient and stable trust region Levenberg-Marquardt procedure.
+The quasi-chi-squared accounts for uncertainties in both independent and dependent variables. The classes are essentially wrappers of the scipy.odr classes, which in turn are wrapper of the Fortran77 rountines in the ODRpack. In contrast to many linear and logistic regression implementation, whose solver is based on the gradient search method, ODRpack uses an efficient and stable trust region Levenberg-Marquardt procedure.
 
 The routine uses a specifically-designed regularization that scales the coefficients instead of penalizaing the cost function (here the quasi-chi-squared). The parameter C controles the level of regularization with a low value of C corresponding to a high regularization and a high value of C meaning no and small regularization. The package can be download here.
 
