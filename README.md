@@ -3,7 +3,7 @@ Machine learning regressor and classifiers (One-versus-the-rest and  Multinomial
 
 I implemented a regressor and three classifiers (one binary logistic and two multiclass) based on the Orthogonal Distance algorithm. The methods and attributes are compatible with the scikit-learn Application Programming Interface such that the algorithms here can be used as scikit-learn regressor and classifiers.
 
-The Orthogonal Distance algorithm uses the quasi-chi-squared as the cost function instead of the least-square method. The quasi-chi-squared” converges to conventional chi-square for zero uncertainties in the independent variables x.
+The Orthogonal Distance algorithm uses the quasi-chi-squared as the cost function instead of the least-square method. The quasi-chi-squared” converges to conventional chi-square for zero uncertainties in the independent variables x. The classifier and regressors can be useful when the uncertainties of the data are known.
 
 The quasi-chi-squared accounts for uncertainties in both independent and dependent variables. The classes are essentially wrappers of the scipy.odr classes, which in turn are wrapper of the Fortran77 rountines in the ODRpack. In contrast to many linear and logistic regression implementation, whose solver is based on the gradient search method, ODRpack uses an efficient and stable trust region Levenberg-Marquardt procedure.
 
