@@ -15,3 +15,8 @@ I also provide a couple of examples, mostly derived from scikit-learn. The first
 
 Here the One-versus-the-Rest algorithm expands the Logisitic binary classification method. The algorithm achieves here an accuracy score of ~0.95. The ODR logistic accounts for the uncertaintities in the temperarture measurements. The ODR result differs lsightly from the ODL logistic regression.
 
+The algorithm performs also relatively well as a classifier.
+
+![ODLinear_moons_classification](https://github.com/wfthi/OrthogonalDistanceRegressor/assets/94956037/50a3486f-58e1-4066-8d24-4abbbba219b3)
+
+
