@@ -299,6 +299,9 @@ class ODRBase(object):
             proba.append(self.softmax(y))
         return np.array(proba).T
 
+def linear_func(p, x):
+    m, c = p
+    return m*x + c
 
 #########################################################
 class OrthogonalDistanceLinearRegression(ODRBase, object):
@@ -307,6 +310,8 @@ class OrthogonalDistanceLinearRegression(ODRBase, object):
     Errors in the predcitor and in the target values are possible.
     Without errors, the standatd least square method is used and will
     give the same results than LinearRegression from scikit-learn.
+
+    See the scipy.odr manual for more details.
 
     Parameters
     ----------
@@ -350,10 +355,68 @@ class OrthogonalDistanceLinearRegression(ODRBase, object):
 
     verbose : int, default: False
         level of screen output
+
+    Example
+    -------
+    >>> # Code source: Jaques Grobler for the sklearn part
+    >>> # License: BSD 3 clause
+    >>> import matplotlib.pyplot as plt
+    >>> import numpy as np
+    >>> from sklearn import datasets, linear_model
+    >>> from sklearn.metrics import mean_squared_error, r2_score
+    >>> # Load the diabetes dataset
+    >>> diabetes_X, diabetes_y = datasets.load_diabetes(return_X_y=True)
+    >>> # Use only one feature
+    >>> diabetes_X = diabetes_X[:, np.newaxis, 2]
+    >>> # Split the data into training/testing sets
+    >>> diabetes_X_train = diabetes_X[:-20]
+    >>> diabetes_X_test = diabetes_X[-20:]
+    >>> # Split the targets into training/testing sets
+    >>> diabetes_y_train = diabetes_y[:-20]
+    >>> diabetes_y_test = diabetes_y[-20:]
+    >>> # Create linear regression object
+    >>> regr = linear_model.LinearRegression()
+    >>> # Train the model using the training sets
+    >>> regr.fit(diabetes_X_train, diabetes_y_train)
+    >>> # Make predictions using the testing set
+    >>> diabetes_y_pred = regr.predict(diabetes_X_test)
+    >>> # The coefficients
+    >>> print("Coefficients: \n", regr.coef_)
+    >>> # The mean squared error
+    >>> print("Mean squared error: %.2f" % mean_squared_error(diabetes_y_test,
+    ...       diabetes_y_pred))
+    >>> # The coefficient of determination: 1 is perfect prediction
+    >>> print("Coefficient of determination: %.2f" % r2_score(diabetes_y_test,
+    ...       diabetes_y_pred))
+    >>> # Now the ODLR
+    >>> from ODLinear import OrthogonalDistanceLinearRegression as ODLR
+    >>> regr_odlr = ODLR(error_type='std', max_robust_iter=5, C=1e3, verbose=True)
+    >>> regr_odlr.fit(diabetes_X_train.flatten(), diabetes_y_train)   
+    >>> X_err = 1e-2
+    >>> y_err = 10.
+    >>> regr_odlr.fit(diabetes_X_train.flatten(), diabetes_y_train,
+    ...               X_err=X_err, y_err=y_err)
+    >>> diabetes_y_odlr_pred = regr_odlr.predict(diabetes_X_test)
+    >>> # Plot outputs
+    >>> plt.scatter(diabetes_X_train, diabetes_y_train, color="blue")
+    >>> plt.scatter(diabetes_X_test, diabetes_y_test, color="black")
+    >>> plt.errorbar(diabetes_X_test.flatten(), diabetes_y_test,
+    ...              xerr=X_err, yerr=y_err, fmt='none' )
+    >>> plt.plot(diabetes_X_test, diabetes_y_pred, color="blue",
+    ...          label='Ordinary Linear Regression', linewidth=3)
+    >>> plt.plot(diabetes_X_test, diabetes_y_odlr_pred, color="red",
+    ...          label='Orthogonal Distance Linear Regression', linewidth=3)
+    >>> plt.show()
     """
     def __init__(self, C=1e5, maxit=100, error_type='std', tol=1e-8,
                  robust=False, max_robust_iter=3, error_crit='mean',
                  verbose=False):
+        """
+        If error_type is std then the error are Standard deviations of x. 
+        sx are standard deviations of x and are converted to weights by
+        dividing 1.0 by their squares.
+        
+        """
         self.C = C
         self.maxit = maxit
         self.error_type = error_type
@@ -414,10 +477,50 @@ class OrthogonalDistanceLinearRegression(ODRBase, object):
 
         y : array of shape (n_samples,)
 
+        X_err : scalar or array of same shape as X, optional, default=None
+            the errors for X
+            If X_err is a scalar, then that value is used for all data points
+            (and all dimensions of the response variable
+
+        y_err : scalar or array of same shape as y, optional, default=None
+            the errors for y
+            If y_err is a scalar, then that value is used for all data points
+            (and all dimensions of the response variable
+       
         Returns
         -------
         self : object
         Returns self.
+
+        Example
+        -------
+        >>> import random
+        >>> from scipy.odr import *
+        >>> import numpy as np
+        >>> from ODLinear import OrthogonalDistanceLinearRegression as ODLR
+        >>> # Initiate some data, giving some randomness using random.random().
+        >>> x = np.array([0, 1, 2, 3, 4, 5])
+        >>> y = np.array([i**2 + random.random() for i in x])
+        >>> # Define a function (quadratic in our case) to fit the data with.
+        >>> def linear_func(p, x):
+        ...    m, c = p
+        ...    return m*x + c
+        >>> # Create a model for fitting.
+        >>> linear_model = Model(linear_func)
+        >>> # Create a RealData object using our initiated data from above.
+        >>> data = RealData(x, y, sx = np.repeat(0.1, 6))
+        >>> # Set up ODR with the model and data.
+        >>> odr = ODR(data, linear_model, beta0=[0., 1.])
+        >>> # Run the regression.
+        >>> out = odr.run()
+        >>> # Use the in-built pprint method to give us results.
+        >>> out.pprint()
+        >>> regr_odlr = ODLR(error_type='std', max_robust_iter=5, verbose=True)
+        >>> regr_odlr.fit(x, y)
+        >>> ypred = regr_odlr.predict(x)
+        >>> X_err = 0.1
+        >>> regr_odlr.fit(x, y, X_err=X_err)
+        >>> ypred = regr_odlr.predict(x)
         """
         y = np.array(y)
         if (y.ndim > 1):
@@ -436,12 +539,25 @@ class OrthogonalDistanceLinearRegression(ODRBase, object):
             initial_guess = np.ones(n_features+1)
 
         if (X_err is not None):
+            if isinstance(X_err, (int, float)):
+                if X_err < 1e-16:
+                    X_err = 1e-16
+                if n_features == 1:
+                    X_err = np.repeat(X_err, n_samples)
+                else:
+                    X_err = np.tile(X_err, (n_samples, n_features))
+            else:
+                w = X_err < 1e-16
+                X_err[w] = 1e-16
+
             if (self.error_type == 'std'):
                 X_err = X_err.T              # transpose X_err like X
                 # check that X and X_err have the same shape
                 ODRBase().check_XX(X, X_err)
 
         if (y_err is not None):
+            if isinstance(y_err, (int, float)):
+                y_err = np.repeat(y_err, n_samples)
             if (y.ndim > 1):
                 ODRBase().check_XX(y, y_err)
             else:
@@ -467,9 +583,23 @@ class OrthogonalDistanceLinearRegression(ODRBase, object):
         for _ in range(self.max_robust_iter):
             # The data, with weightings as actual standard deviations
             if (self.error_type == 'std'):
+                """
+                The data, with weightings as actual standard deviations
+                and/or covariances.
+                sx and sy are converted to weights by dividing 1.0 by their
+                squares. For example, wd = 1./numpy.power(`sx`, 2).
+                """
                 data = RealData(X, y, sx=X_err, sy=y_err)
             else:
-                data = Data(X, y, we=X_err, wd=y_err)
+                """
+                The we argument weights the effect a deviation in the response
+                variable has on the fit. The `wd` argument weights the effect a
+                deviation in the input variable has on the fit. To handle
+                multidimensional inputs and responses easily, the structure of
+                these arguments has the n'th dimensional axis first.
+                """
+                data = Data(X, y, wd=X_err, we=y_err)
+            # linear function
             model = Model(ODRBase().lin_func, extra_args=[self.C])
             odr = ODR(data, model, beta0=initial_guess,
                       maxit=self.maxit, sstol=self.tol, **kwargs)
@@ -517,6 +647,7 @@ class OrthogonalDistanceLinearRegression(ODRBase, object):
             # add the y-residual to the initial error in y
             y_err = y_err0 + error
             initial_guess = out.beta
+        self.out = out
         y_err = y_err0
         return self
 
@@ -699,7 +830,7 @@ class OrthogonalDistanceLogisticRegression(ODRBase, object):
         if (self.error_type == 'std'):
             data = RealData(X, y, sx=X_err)
         else:
-            data = Data(X, y, we=X_err)
+            data = Data(X, y, wd=X_err)
         model = Model(ODRBase().logit_func, extra_args=[self.C, self.func])
         odr = ODR(data, model, beta0=initial_guess,
                   maxit=self.maxit, sstol=self.tol, **kwargs)
@@ -990,7 +1121,7 @@ class OrthogonalDistanceLogisticRegressionOVR(ODRBase, object):
         y : array-like, shape (n_samples,)
             Target vector relative to X.
 
-        X_err : array of the same shape than X (n_samples,n_features), optional
+        X_err : array of the same shape than X (n_samples, n_features), optional
             Array of error for each predictor. Without error, a standard least
             square method is used.
 
@@ -1052,7 +1183,7 @@ class OrthogonalDistanceLogisticRegressionOVR(ODRBase, object):
             if (self.error_type == 'std'):
                 data = RealData(X, y_copy, sx=X_err)
             else:
-                data = Data(X, y_copy, we=X_err)
+                data = Data(X, y_copy, wd=X_err)
             model = Model(ODRBase().logit_func,
                           extra_args=[self.C, self.func])
             odr = ODR(data, model, beta0=initial_guess[i, :],
@@ -1400,7 +1531,7 @@ class OrthogonalDistanceMultinomialLogisticRegression(ODRBase, object):
         if (self.error_type == 'std'):
             data = RealData(X, Y, sx=X_err)
         else:
-            data = Data(X, Y, we=X_err)
+            data = Data(X, Y, wd=X_err)
         if (self.verbose):
             print("Number of parameters:", initial_guess.size)
         model = Model(ODRBase().multinomial_func, extra_args=[self.C])
