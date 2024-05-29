@@ -224,7 +224,7 @@ class ODRBase(object):
 
     def multi_lin_func(self, p, X, C):
         n_features = X.shape[0]
-        n_classes = p.size / (n_features + 1)
+        n_classes = int(p.size / (n_features + 1))
         pm = p.reshape(n_classes, n_features + 1)
         pm = self._regularize_coeffs(pm, C)
         ylin = np.dot(pm[:, 0:n_features], X)
