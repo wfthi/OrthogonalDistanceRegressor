@@ -1319,9 +1319,8 @@ class OrthogonalDistanceLogisticRegressionOVR(ODRBase, object):
                 proba_logit.append(ODRBase().logit_func(w, X,
                                                         self.C, self.func))
             proba_logit = np.array(proba_logit)
-            proba_tot = np.sum(proba_logit, axis=0).T
-            normalization = np.vstack((proba_tot, proba_tot, proba_tot))
-            probabilities = (proba_logit / normalization).T
+            normalization = np.sum(proba_logit, axis=0)
+            probabilities = (proba_logit / (normalization + 1e-16)).T
         else:
             raise ValueError("Wrong probabilty type. Use softmax or ovr")
         return probabilities
@@ -1351,7 +1350,7 @@ class OrthogonalDistanceMultinomialLogisticRegression(ODRBase, object):
     hot encoding and the data are fit to determine directly their probability
     like for a binary classification. The function to obtain the probabities is
     the softmax function instead of the sigmoid function.
-    This method is slow than the One-Versus-the-Rest (OVR) method and can give
+    This method is slower than the One-Versus-the-Rest (OVR) method and can give
     different predictions than the OVR method.
 
     Parameters

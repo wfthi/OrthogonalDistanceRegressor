@@ -22,7 +22,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.datasets import load_digits
 from sklearn import metrics 
-from ODLinear import *
+#from ODLinear import *
+from ODLinear_fast import *
 
 t0 = time.time()
 
@@ -50,7 +51,7 @@ X_train = scaler.transform(X_train)
 X_test  = scaler.transform(X_test)
 
 # train the model
-clf = OrthogonalDistanceLogisticRegressionOVR(C=100,tol=1e-4)
+clf = OrthogonalDistanceLogisticRegressionOVR(C=100,tol=1e-4, probability="ovr")
 
 clf.fit(X_train, y_train)
 

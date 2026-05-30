@@ -18,7 +18,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LogisticRegression
-from ODLinear import OrthogonalDistanceLogisticRegression
+from ODLinear_fast import OrthogonalDistanceLogisticRegression
 
 xFahrenheit  = np.array([66, 70, 69, 
            68, 67, 72, 
@@ -42,16 +42,23 @@ Xerr = np.full(len(xtemp),2.)
 
 x_fit = np.linspace(min(xtemp)-20, max(xtemp)+10, 100)
 
+# --- Reshape xtemp to (n_samples, 1) ---
+xtemp_2d = xtemp.reshape(-1, 1)
+
+# --- Reshape Xerr to match (n_samples, 1) ---
+Xerr_2d = Xerr.reshape(-1, 1)
 
 # Orthogonal Distance Logistic Regression - the regularization is suppressed
 odlr = OrthogonalDistanceLogisticRegression(verbose=0,
                                             error_type='std', 
-                                            C=1e4, func='sigmoid')
+                                            C=1e4, func='sigmoid', robust=False)
 
-odlr.fit(xtemp , ydamage, X_err=Xerr)
+odlr.fit(xtemp_2d , ydamage, X_err=Xerr_2d)
+
 print('ODR logisitic model fit?', odlr.fit_model_)
 y_err_fit = odlr.predict_proba(x_fit)[:,1]
 print('ODr logistic fit score:', odlr.score(xtemp, ydamage))
+print(f'slope: {odlr.coef_}')
 
 # sklearn Logistic Regression - use a high value of C to limit regularization
 xtemp = xtemp.reshape(-1, 1)

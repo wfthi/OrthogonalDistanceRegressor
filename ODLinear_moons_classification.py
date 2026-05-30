@@ -20,7 +20,8 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.datasets import make_moons
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.linear_model import LogisticRegression
-from ODLinear import *
+from ODLinear_fast import *
+#from ODLinear import *
 
 noise = 0.2
 X, y =  make_moons(noise=0.3, random_state=0) # generate toy data
@@ -49,7 +50,7 @@ Xpoly_err_test = Xpoly_err[ind_test,:]
 
 v = poly.transform(np.c_[xx.ravel(), yy.ravel()])
 
-clf = OrthogonalDistanceLogisticRegression(C=50, func='tanh')
+clf = OrthogonalDistanceLogisticRegression(C=50, func='sigmoid')
 
 clf.fit(Xpoly_train, y_train, X_err=Xpoly_err_train)
 
@@ -58,7 +59,7 @@ print("score (test) :",clf.score(Xpoly_test,y_test))
 
 pred=clf.predict(Xpoly_test)
 proba=clf.predict_proba(Xpoly_test)[:,1]
-proba_MC_errors=clf.predict_proba_MC_error(Xpoly_test, Xpoly_err_test)
+_, proba_MC_errors=clf.predict_proba_MC_error(Xpoly_test, Xpoly_err_test)
 
 print("logloss score (test) :", clf.logloss_score(y_test, proba))
 
