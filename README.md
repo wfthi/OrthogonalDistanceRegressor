@@ -1,6 +1,14 @@
 # OrthogonalDistanceRegressor
 Machine learning regressor and classifiers (One-versus-the-rest and  Multinomial) based on the Orthogonal Distance algorithm.
 
+Usage Recommendations
+
+This software is particularly valuable for:
+* Scientific computing where measurement errors in both X and y are significant
+* Robust regression applications where outliers are common
+* Uncertainty quantification requirements
+* Multi-class classification with proper error modeling
+
 I implemented a regressor and three classifiers (one binary logistic and two multiclass) based on the Orthogonal Distance algorithm. The methods and attributes are compatible with the scikit-learn Application Programming Interface such that the algorithms here can be used as scikit-learn regressor and classifiers.
 
 The Orthogonal Distance algorithm (also known as total least squares regression algorithm) uses the quasi-chi-squared as the cost function instead of the least-square method. The quasi-chi-squared” converges to conventional chi-square for zero uncertainties in the independent variables x. The classifier and regressors can be useful when the uncertainties of the data are known.
