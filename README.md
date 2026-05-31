@@ -4,10 +4,23 @@ Machine learning regressor and classifiers (One-versus-the-rest and  Multinomial
 Usage Recommendations
 
 This software is particularly valuable for:
+* Experimental data with systematic measurement errors
 * Scientific computing where measurement errors in both X and y are significant
 * Robust regression applications where outliers are common
 * Uncertainty quantification requirements
 * Multi-class classification with proper error modeling
+* Multi-instrument data fusion
+
+Specifically
+* Astrophysics Applications
+  - Detector response variations with different signal strengths
+  - Instrumental calibration correlations
+  - Multi-wavelength data fusion with varying uncertainties
+
+* Atmospheric Physics
+  - Seasonal concept drift in climate measurements
+  - Sensor degradation effects over time
+  - Ensemble forecasting with heterogeneous uncertainty sources
 
 I implemented a regressor and three classifiers (one binary logistic and two multiclass) based on the Orthogonal Distance algorithm. The methods and attributes are compatible with the scikit-learn Application Programming Interface such that the algorithms here can be used as scikit-learn regressor and classifiers.
 
