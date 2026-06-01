@@ -386,6 +386,29 @@ def fast_mad_sampling(error, sample_size=10000):
 
 class ODRBase(object):
     def check_Xy(self, X, y):
+        """
+        Validate that input features X and target values y have compatible dimensions.
+
+        This method ensures that the number of samples in X matches the number of 
+        target values in y. This is essential for proper model training and prediction.
+
+        Parameters:
+        -----------
+        X : array-like
+            Input features array with shape (n_samples, n_features)
+        y : array-like  
+            Target values array with shape (n_samples,) or (n_samples, 1)
+    
+        Returns:
+        --------
+        self : ODRBase
+        Returns self to enable method chaining
+    
+        Raises:
+        -------
+        ValueError
+            If the number of samples in X does not match the size of y
+            """
         X = np.array(X)
         n_samples = X.shape[0]
         y = np.array(y)
@@ -394,6 +417,29 @@ class ODRBase(object):
         return self
 
     def check_XY(self, X, Y):
+        """
+        Validate that input features X and target matrix Y have compatible dimensions.
+
+        This method ensures that the number of samples in X matches the number of 
+        samples in Y. This is particularly important for multi-output regression problems.
+
+        Parameters:
+        -----------
+        X : array-like
+            Input features array with shape (n_samples, n_features)
+        Y : array-like
+            Target matrix with shape (n_samples, n_outputs)
+    
+        Returns:
+        --------
+        self : ODRBase
+            Returns self to enable method chaining
+    
+        Raises:
+        -------
+        ValueError
+            If the number of samples in X does not match the number of samples in Y
+        """
         X = np.array(X)
         n_samples = X.shape[0]
         Y = np.array(Y)
@@ -404,6 +450,30 @@ class ODRBase(object):
         return self
 
     def check_XX(self, X1, X2):  # check that two arrays have the same shape
+        """
+        Validate that two arrays have identical dimensions.
+        
+        This method compares the shapes of two arrays to ensure they are compatible
+        for operations that require matching dimensions (e.g., element-wise operations,
+        error array validation, etc.).
+        
+        Parameters:
+        -----------
+        X1 : array-like
+            First array to compare
+        X2 : array-like
+            Second array to compare
+            
+        Returns:
+        --------
+        self : ODRBase
+            Returns self to enable method chaining
+            
+        Raises:
+        -------
+        ValueError
+            If the arrays have incompatible dimensions along either axis
+        """
         X1 = np.array(X1)
         X2 = np.array(X2)
         dimX1 = X1.ndim
@@ -429,6 +499,29 @@ class ODRBase(object):
         return self
 
     def modify(self, X):
+        """
+        Preprocess input data by converting to numpy array and transposing.
+        
+        This method standardizes input data format for consistent processing:
+        1. Converts input to numpy array with float dtype for numerical stability
+        2. Transposes the array to ensure proper orientation for matrix operations
+        3. Extracts sample and feature dimensions for subsequent processing
+        
+        For 2D arrays: shape (n_samples, n_features) becomes (n_features, n_samples)
+        For 1D arrays: shape (n_samples,) becomes (1, n_samples)
+        
+        Parameters:
+        -----------
+        X : array-like
+            Input features array that may be 1D or 2D
+            
+        Returns:
+        --------
+        tuple : (X_transposed, n_samples, n_features)
+            X_transposed : numpy array with shape (n_features, n_samples) after transpose
+            n_samples : integer number of samples
+            n_features : integer number of features
+        """        
         X = np.array(X).astype(float)
         if (X.ndim > 1):
             n_samples, n_features = X.shape
@@ -439,10 +532,35 @@ class ODRBase(object):
 
     def _regularize_coeffs(self, p, C, l1=0.0, l2=0.0, alpha_en=0.5):
         """
-        Scaling regularization with explicit 
-        Elastic Net shrinkage added at the end.
+        Apply Elastic Net regularization to model coefficients.
+        
+        This method implements explicit Elastic Net regularization with:
+        1. L1 regularization (Lasso) for sparsity
+        2. L2 regularization (Ridge) for stability
+        3. Elastic Net mixing parameter to balance both penalties
+        
+        The regularization is applied to weights only (excluding intercept terms).
+        For multi-class problems, regularization is applied to each class separately.
+        
+        Parameters:
+        -----------
+        p : array-like
+            Model coefficients to regularize
+        C : float
+            Regularization strength (inverse of regularization parameter)
+        l1 : float, default=0.0
+            L1 regularization strength (Lasso penalty)
+        l2 : float, default=0.0
+            L2 regularization strength (Ridge penalty)
+        alpha_en : float, default=0.5
+            Elastic Net mixing parameter (0.0 = L2 only, 1.0 = L1 only)
+            
+        Returns:
+        --------
+        array : Regularized coefficients with same shape as input p
         """
         if (p.ndim > 1):
+            # Multi-class case: apply regularization to each class separately
             alpha = 1. / (1. + np.abs(p).sum(axis=1) / C)
             rcoeffs = np.empty((p.shape))
             for i, a in enumerate(alpha):
@@ -466,6 +584,7 @@ class ODRBase(object):
                                 val = 0.0
                         rcoeffs[i, j] = val
         else:
+            # Binary case: apply regularization to single coefficient vector
             rcoeffs = p / (1. + abs(p).sum() / C)
             
             # --- Explicit Elastic Net for Binary ---
@@ -487,16 +606,69 @@ class ODRBase(object):
         return rcoeffs
 
     def lin_func(self, p, X, C, l1=0.0, l2=0.0, alpha=0.5):
+        """
+        Compute linear function with regularization for single or multi-feature cases.
+        
+        This method evaluates the linear combination: y = X * weights + intercept
+        It applies regularization to the coefficients before computation.
+        
+        Parameters:
+        -----------
+        p : array-like
+            Model parameters (weights + intercept) with shape (n_features + 1,)
+        X : array-like
+            Input features with shape (n_features, n_samples) after transpose
+        C : float
+            Regularization strength
+        l1 : float, default=0.0
+            L1 regularization strength
+        l2 : float, default=0.0
+            L2 regularization strength
+        alpha : float, default=0.5
+            Elastic Net mixing parameter
+            
+        Returns:
+        --------
+        array : Linear function values with shape (n_samples,)
+        """
         n_features = p.size - 1
         p = self._regularize_coeffs(p, C, l1, l2, alpha)
         if (n_features > 1):
+            # Multi-feature case: matrix multiplication
             y = (X.T).dot(p[0:n_features]) + p[n_features]
         else:
+            # Single-feature case: simple linear equation
             a, b = p
             y = a*X + b
         return y.reshape(y.size)
 
     def multi_lin_func(self, p, X, C, l1=0.0, l2=0.0, alpha=0.5):
+        """
+        Compute multi-linear function for multi-class classification.
+        
+        This method evaluates linear combinations for each class in multi-class 
+        scenarios. It applies regularization to all class coefficients simultaneously.
+        
+        Parameters:
+        -----------
+        p : array-like
+            Model parameters with shape (n_classes * (n_features + 1),)
+            Each class has (n_features + 1) parameters (weights + intercept)
+        X : array-like
+            Input features with shape (n_features, n_samples) after transpose
+        C : float
+            Regularization strength
+        l1 : float, default=0.0
+            L1 regularization strength
+        l2 : float, default=0.0
+            L2 regularization strength
+        alpha : float, default=0.5
+            Elastic Net mixing parameter
+            
+        Returns:
+        --------
+        array : Linear function values with shape (n_classes, n_samples)
+        """
         n_features = X.shape[0]
         n_classes = int(p.size / (n_features + 1))
         pm = p.reshape(n_classes, n_features + 1)
@@ -506,14 +678,130 @@ class ODRBase(object):
             ylin[:, i] = ylin[:, i] + pm[:, n_features]
         return ylin
 
+    def logistic_link_func(beta, x, extra_args=None):
+        """
+        Generalized Logistic Link Function executed INSIDE the ODR optimization loop.
+        Maps any arbitrary feature space securely into a stable [0, 1] probability space.
+        """
+        # 1. Compute the standard multivariate linear projection
+        linear_combination = np.dot(beta[:-1], x) + beta[-1]
+    
+        # 2. Bound the projection inside the solver loop to prevent exponential overflow
+        clipped_projection = np.clip(linear_combination, -20, 20)
+    
+        # 3. Return the continuous Sigmoid probability link back to ODRPACK
+        return 1.0 / (1.0 + np.exp(-clipped_projection))
+
     def logit_func(self, p, X, C, func, l1=0.0, l2=0.0, alpha_en=0.5):
+        """
+        Compute logistic function (sigmoid or tanh) with regularization.
+        
+        This method applies the specified activation function to linear predictions
+        after applying regularization to coefficients.
+        
+        Parameters:
+        -----------
+        p : array-like
+            Model parameters (weights + intercept)
+        X : array-like
+            Input features with shape (n_features, n_samples) after transpose
+        C : float
+            Regularization strength
+        func : str
+            Activation function ('sigmoid' or 'tanh')
+        l1 : float, default=0.0
+            L1 regularization strength
+        l2 : float, default=0.0
+            L2 regularization strength
+        alpha_en : float, default=0.5
+            Elastic Net mixing parameter
+            
+        Returns:
+        --------
+        array : Activated function values with shape (n_samples,)
+        """
         ylin = self.lin_func(p, X, C, l1, l2, alpha_en)
         if (func == 'sigmoid'):
             return self._sigmoid(ylin)
         elif (func == 'tanh'):
             return self._tanh(ylin)
 
+    def logit_func_scaled(self, p, X, C, func, l1=0.0, l2=0.0, alpha_en=0.5):
+        """
+        Compute logistic function (sigmoid or tanh) with regularization.
+        
+        This method applies the specified activation function to linear predictions
+        after applying regularization to coefficients.
+        
+        Parameters:
+        -----------
+        p : array-like
+            Model parameters (weights + intercept)
+        X : array-like
+            Input features with shape (n_features, n_samples) after transpose
+        C : float
+            Regularization strength
+        func : str
+            Activation function ('sigmoid' or 'tanh')
+        l1 : float, default=0.0
+            L1 regularization strength
+        l2 : float, default=0.0
+            L2 regularization strength
+        alpha_en : float, default=0.5
+            Elastic Net mixing parameter
+            
+        Returns:
+        --------
+        array : Activated function values with shape (n_samples,)
+        """
+        # 1. Compute the raw linear combination line
+        ylin = self.lin_func(p, X, C, l1, l2, alpha_en)
+        
+        # 2. Extract feature weights (excluding the intercept at the end of array p)
+        # ODRPACK passes p as a flat array where the last element is the intercept bias
+        weights = p[:-1]
+        
+        # 3. Calculate the Euclidean norm of the weights to act as a geometric scale buffer
+        scale_factor = np.sqrt(np.sum(weights**2)) + 1e-5
+        
+        # 4. Standardize the linear projection to true geometric distance space
+        ylin_stable = ylin / scale_factor
+        
+        # 5. Secure against exponential overflow/underflow bounds
+        ylin_stable = np.clip(ylin_stable, -20, 20)
+        
+        # 6. Route to the requested activation link
+        if func == 'sigmoid':
+            return self._sigmoid(ylin_stable)
+        elif func == 'tanh':
+            return self._tanh(ylin_stable)
+
     def multinomial_func(self, p, X, C, l1=0.0, l2=0.0, alpha=0.5):
+        """
+        Compute multinomial (softmax) probabilities for multi-class classification.
+        
+        This method computes class probabilities using the softmax function
+        after applying regularization to all class coefficients.
+        
+        Parameters:
+        -----------
+        p : array-like
+            Model parameters with shape (n_classes * (n_features + 1),)
+        X : array-like
+            Input features with shape (n_features, n_samples) after transpose
+        C : float
+            Regularization strength
+        l1 : float, default=0.0
+            L1 regularization strength
+        l2 : float, default=0.0
+            L2 regularization strength
+        alpha : float, default=0.5
+            Elastic Net mixing parameter
+            
+        Returns:
+        --------
+        array : Probability values with shape (n_samples, n_classes)
+        """
         Ylin = self.multi_lin_func(p, X, C, l1, l2, alpha)
         proba = []
         for y in Ylin.T:
@@ -521,34 +809,480 @@ class ODRBase(object):
         return np.array(proba).T
 
     def _sigmoid(self, x):
+        """
+        Compute numerically stable sigmoid function.
+        
+        This implementation handles numerical overflow/underflow by:
+        1. Clamping extreme values to avoid overflow
+        2. Using appropriate approximations for different ranges
+        3. Ensuring numerical stability for both positive and negative inputs
+        
+        Parameters:
+        -----------
+        x : array-like
+            Input values
+            
+        Returns:
+        --------
+        array : Sigmoid transformed values in range [0, 1]
+        
+        Raises:
+        -------
+        ValueError
+            If NaN or Inf values are detected in input
+        """
         if (np.any(np.isnan(x))):
             raise ValueError("NaN or Inf found while calling sigmoid")
         z = np.empty(x.size)
+        # Handle extreme positive values
         z[x > 30.] = 1.
+        # Handle moderate positive values
         z[(x <= 30.) & (x > 20.)] = 1. - np.exp(-x[(x <= 30.) & (x > 20.)])
+        # Handle moderate range
         z[(x <= 20.) & (x >= 0.)] = 1. / (1. + np.exp(-x[(x <= 20.) & (x >= 0.)]))
+        # Handle extreme negative values
         z[x < -30.] = 0.
+        # Handle moderate negative values
         z[(x >= -30.) & (x < -20.)] = np.exp(x[(x >= -30.) & (x < -20.)])
+        # Handle near-zero range with careful computation
         w6 = (x < 0.) & (x >= -20.)
         z6 = np.exp(x[w6])
         z[w6] = z6 / (1 + z6)
         return z
 
     def _tanh(self, x):
+        """
+        Compute numerically stable hyperbolic tangent function.
+        
+        This implementation handles numerical stability by:
+        1. Clamping extreme values to avoid overflow
+        2. Using appropriate approximations for different ranges
+        3. Ensuring smooth transition around zero
+        
+        Parameters:
+        -----------
+        x : array-like
+            Input values
+            
+        Returns:
+        --------
+        array : Tanh transformed values in range [-1, 1]
+        """
         z = np.empty(x.size)
+        # Handle extreme positive values
         z[x > 20.] = 1.
+        # Handle extreme negative values
         z[x < -20.] = 0.
+        # Handle moderate range with proper tanh computation
         w3 = ((x >= -20.) & (x <= 20.))
         z[w3] = 0.5*(np.tanh(x[w3])+1.)
         return z
 
     def softmax(self, x):
+        """
+        Compute softmax function for a vector of logits.
+        
+        The softmax function converts logits to probabilities by:
+        1. Subtracting the maximum value for numerical stability
+        2. Computing exponentials of all values
+        3. Normalizing by the sum to ensure probabilities sum to 1
+        
+        Parameters:
+        -----------
+        x : array-like
+            Input vector of logits (should be 1D)
+            
+        Returns:
+        --------
+        array : Probability values that sum to 1.0
+            
+        Raises:
+        -------
+        ValueError
+            If input is not a 1D vector
+        """
         # softmax function for a vector
         if (x.ndim > 1):  # use x-m to scale the values down to avoid overflow
             raise ValueError("softmax function works on vectors only")
         m = np.max(x)
-        u = np.exp(x-m)
+        u = np.exp(x-m)  # Subtract max for numerical stability
         return u / u.sum()  # u is a vector
+
+
+class ODRCommonMethods(ODRBase):
+    """
+    Common methods shared between different ODR implementations.
+    
+    This base class consolidates shared functionality to reduce code duplication
+    and improve maintainability across different ODR-based regressors and classifiers.
+    """
+    
+    def _hot_encoding(self, y):
+        """
+        Create the Y (n_samples ,n_classes) array using the hot-encoding method.
+        
+        Parameters:
+        -----------
+        y : array-like
+            Target labels array
+            
+        Returns:
+        --------
+        array : Hot-encoded matrix with shape (n_samples, n_classes)
+        """
+        Y = np.zeros((self.n_samples, self.n_classes_))
+        for i in range(self.n_samples):
+            ind = np.argmax(self.classes_ == y[i].astype(int))
+            Y[i, ind] = 1.
+        return Y.T
+    
+    def _validate_and_prepare_data(self, X, y):
+        """
+        Validate input data and prepare for fitting.
+        
+        Parameters:
+        -----------
+        X : array-like
+            Input features
+        y : array-like
+            Target labels
+            
+        Returns:
+        --------
+        tuple : (X_modified, n_samples, n_features)
+        """
+        ODRBase().check_XY(X, y)
+        X, n_samples, n_features = ODRBase().modify(X)
+        self.classes_ = np.unique(y).astype(int)
+        self.n_classes_ = self.classes_.size
+        self.n_samples = n_samples
+        self.n_features = n_features
+        return X, n_samples, n_features
+    
+    def _setup_error_handling(self, X, X_err, y_err, fit_type_default=2):
+        """
+        Setup error handling for robust fitting.
+        
+        Parameters:
+        -----------
+        X : array-like
+            Input features
+        X_err : array-like, optional
+            Input error array
+        y_err : array-like, optional
+            Output error array
+        fit_type_default : int
+            Default fit type (2 for standard OLS)
+            
+        Returns:
+        --------
+        tuple : (X_err_processed, fit_type, y_err_processed)
+        """
+        # Protect original X_err
+        if (X_err is not None):
+            self.fit_type_ = 0  # explicit ODR + central finite differences
+            if (self.error_type == 'std'):
+                X_err_in = X_err.T
+                ODRBase().check_XX(X, X_err_in)
+            else: # no error: use least-square + central finite differences
+                X_err_in = X_err
+        else:
+            self.fit_type_ = 0 if self.robust else fit_type_default
+            X_err_in = None
+
+        # Y Error Initialization for robust mode
+        y_err_orig = np.array(y_err) if y_err is not None else (np.ones(Y.shape) if self.robust else None)
+        curr_y_err = np.copy(y_err_orig) if y_err_orig is not None else None
+        
+        return X_err_in, self.fit_type_, curr_y_err
+    
+    def _apply_class_balancing(self, y_err_orig, y_bin, correct_imbalance):
+        """
+        Apply class balancing for imbalanced datasets.
+        
+        Parameters:
+        -----------
+        y_err_orig : array-like
+            Original error array
+        y_bin : array-like
+            Binary target array for current class
+        correct_imbalance : bool
+            Whether to apply class balancing
+            
+        Returns:
+        --------
+        array : Balanced error array
+        """
+        if correct_imbalance and y_err_orig is not None:
+            # Calculate weights to balance the classes
+            count_pos = np.sum(y_bin == 1)
+            count_neg = np.sum(y_bin == 0)
+        
+            # Add a small epsilon to avoid division by zero
+            weight_pos = count_neg / (count_pos + 1e-10) 
+        
+            # Cap the weight to prevent numerical explosion
+            weight_pos = np.clip(weight_pos, 1.0, 100.0)
+
+            # Apply balancing: Minority class (1) gets smaller error -> higher weight
+            y_err_balanced = np.where(y_bin == 1, y_err_orig / weight_pos, y_err_orig)
+        else:
+            y_err_balanced = np.copy(y_err_orig)
+            
+        return y_err_balanced
+    
+    def _robust_update_strategy(self, error, n_samples, y_err_orig, y_err_balanced):
+        """
+        Apply dual-strategy robust update based on sample size.
+        
+        Parameters:
+        -----------
+        error : array-like
+            Residual errors
+        n_samples : int
+            Number of samples
+        y_err_orig : array-like
+            Original error array
+        y_err_balanced : array-like
+            Balanced error array
+            
+        Returns:
+        --------
+        array : Updated error array
+        """
+        if n_samples <= 100:
+            # Linear Rank-Based (Stable for small N)
+            max_err = np.max(error)
+            inflation = error * (error / max_err) if max_err > 0 else 0
+            curr_y_err = y_err_orig + inflation
+        else:
+            # 3-Sigma Clipping (Statistical for large N)
+            median_eps = np.median(error)
+            mad_eps = np.median(np.abs(error - median_eps))
+            threshold = 3.0 * (1.4826 * mad_eps)
+            inflation = np.where(error > threshold, error, 0) if threshold > 0 else 0
+            curr_y_err = y_err_orig + inflation
+            
+        return curr_y_err
+    
+    def _calculate_robust_criteria(self, error, error_crit):
+        """
+        Calculate robust fitting criteria for convergence.
+        
+        Parameters:
+        -----------
+        error : array-like
+            Residual errors
+        error_crit : str
+            Error criterion for convergence
+            
+        Returns:
+        --------
+        float : Current criterion value
+        """
+        median_eps = np.median(error)
+        mad_eps = np.median(np.abs(error - median_eps))
+        crit_map = {
+            'mean': np.mean(error), 
+            'median': median_eps, 
+            'mad': mad_eps, 
+            'std': np.std(error)
+        }
+        return crit_map.get(error_crit, np.mean(error))
+    
+    def predict_proba_sigma_check(self, X, X_err):
+        """
+        Multiclass evaluation at mean and +/- 1, 2, and 3 sigma points.
+        
+        Parameters:
+        -----------
+        X : array-like
+            Input features
+        X_err : array-like
+            Input error array
+            
+        Returns:
+        --------
+        tuple : (mean_probabilities, std_probabilities)
+        """
+        if not self.fit_model_:
+            raise ValueError("You need to fit the model first")
+
+        # 1. Transform X: returns (n_features, n_samples)
+        X_mid, n_samples, n_features = ODRBase().modify(X)
+        if (self.n_features != n_features):
+            raise ValueError("Numbers of features do not match")
+
+        # 2. Correct the broadcasting: E_trans must be (n_features, n_samples)
+        if isinstance(X_err, (int, float)):
+            E_trans = np.full(X_mid.shape, X_err)
+        else:
+            # Check orientation and force it to (n_features, n_samples)
+            if X_err.shape == (n_samples, n_features):
+                E_trans = X_err.T
+            else:
+                E_trans = X_err
+
+        # 3. Define evaluation points - shapes are now consistent (n_features, n_samples)
+        points = [X_mid, X_mid + E_trans, X_mid - E_trans, 
+                  X_mid + 2. * E_trans, X_mid - 2. * E_trans,
+                  X_mid + 3. * E_trans, X_mid - 3. * E_trans]
+        
+        all_p = []
+        for pt in points:
+            # For multinomial, we use the same approach as OVR but adapted
+            pt_probs = ODRBase().multinomial_func(self.beta, pt, self.C, l1=self.l1, l2=self.l2, alpha=self.alpha).T
+            all_p.append(pt_probs)
+
+        # Convert to array for statistical calculations: (7, n_samples, n_classes)
+        all_p_array = np.array(all_p)
+        
+        # Calculate mean across the 7-point distribution
+        mean_probabilities = np.mean(all_p_array, axis=0)
+        
+        # Calculate standard deviation to quantify classification sensitivity
+        std_probabilities = np.std(all_p_array, axis=0)
+        
+        return mean_probabilities, std_probabilities
+    
+    def predict_robust(self, X, X_err):
+        """
+        Multiclass robust prediction using the sigma-averaged probability.
+        Identifies the class with the highest average probability 
+        across the error distribution.
+        
+        Parameters:
+        -----------
+        X : array-like
+            Input features
+        X_err : array-like
+            Input error array
+            
+        Returns:
+        --------
+        array : Predicted class labels
+        """
+        # 1. Get the (n_samples, n_classes) averaged probability matrix
+        # from your new sigma-check routine.
+        proba, _ = self.predict_proba_sigma_check(X, X_err)
+        
+        # 2. Select the index of the highest probability for each sample
+        class_indices = np.argmax(proba, axis=1)
+        
+        # 3. Return the actual class labels (e.g., [3, 6])
+        return self.classes_[class_indices]
+    
+    def calculate_entropy(self, X, X_err=None):
+        """
+        Calculates Shannon entropy for predictions.
+        Shannon entropy provides a quantitative measure of prediction 
+        uncertainty that's particularly valuable in scientific applications 
+        where understanding model confidence and reliability is crucial.
+        
+        If X_err is provided, it uses the robust sigma-averaged probabilities.
+        High entropy = model is uncertain about predictions
+        Low entropy = model is confident about predictions
+        entropy = -sum(p * log(p) for p in probabilities)
+        
+        Range: Entropy is always non-negative (H ≥ 0)
+        Maximum Value: Maximum entropy occurs when all outcomes are equally 
+            likely
+        Minimum Value: Minimum entropy (0) occurs when one outcome has 
+            probability 1
+        Additivity: For independent systems, entropies add
+        
+        Parameters:
+        -----------
+        X : array-like
+            Input features
+        X_err : array-like, optional
+            Input error array
+            
+        Returns:
+        --------
+        array : Entropy values for each sample
+        """
+        if X_err is not None:
+            # Use your unique sigma-check mean probabilities
+            probs, _ = self.predict_proba_sigma_check(X, X_err)
+        else:
+            probs = self.predict_proba(X)
+
+        # H = -sum(p * log(p))
+        # Adding a tiny epsilon to avoid log(0)
+        entropy = -np.sum(probs * np.log(probs + 1e-12), axis=1)
+        return entropy
+    
+    def predict_proba_with_model_uncertainty(self, X, n_draws=100):
+        """
+        Estimates uncertainty by sampling from the distribution of weights (beta).
+        
+        Parameters:
+        -----------
+        X : array-like
+            Input features
+        n_draws : int, default=100
+            Number of Monte Carlo draws
+            
+        Returns:
+        --------
+        tuple : (mean_probabilities, std_probabilities)
+        """
+        if not hasattr(self, 'uncertainty_') or self.uncertainty_ is None:
+            raise ValueError("Model covariance (sd_beta) not found. Fit the model first.")
+
+        # Original weights
+        beta_mean = self.beta
+        # standard deviations of weights from ODR
+        beta_std = self.uncertainty_ 
+
+        all_draw_probs = []
+        
+        for _ in range(n_draws):
+            # 1. Build an alternative model by perturbing beta
+            # We sample each beta weight from its own normal distribution
+            beta_perturbed = np.random.normal(beta_mean, beta_std)
+            
+            # 2. Run inference with this alternative model
+            # Note: We use the internal multinomial_func directly
+            probs = ODRBase().multinomial_func(beta_perturbed, X.T, self.C, 
+                                               l1=self.l1, l2=self.l2, alpha=self.alpha).T
+            all_draw_probs.append(probs)
+            
+        # 3. Compute the mean and std across the alternative models
+        all_draw_probs = np.array(all_draw_probs)
+        model_mean_proba = np.mean(all_draw_probs, axis=0)
+        model_std_err = np.std(all_draw_probs, axis=0)
+        
+        return model_mean_proba, model_std_err
+    
+    def score(self, X, y):
+        """
+        Return the accuracy score for classification.
+        
+        Parameters:
+        -----------
+        X : array-like
+            Input features
+        y : array-like
+            True labels
+            
+        Returns:
+        --------
+        float : Accuracy score (fraction of correct predictions)
+        """
+        # Ensure both arrays are 1D and have the same length
+        y = np.array(y).flatten()
+        predictions = self.predict(X)
+        predictions = np.array(predictions).flatten()
+        
+        # Handle potential shape mismatches
+        if len(predictions) != len(y):
+            raise ValueError(f"Shape mismatch: predictions has {len(predictions)} elements, "
+                           f"y has {len(y)} elements")
+        
+        return np.mean(predictions == y)
+
 
 #########################################################
 class OrthogonalDistanceLinearRegression(ODRBase, object):
@@ -1115,7 +1849,31 @@ class OrthogonalDistanceLogisticRegression(ODRBase, object):
         return self.classes_[(np.floor(proba + 0.5)).astype(int)]
 
     def score(self, X, y):
-        return np.mean(self.predict(X) == y)
+        """
+        Return the accuracy score for binary classification.
+        
+        Parameters:
+        -----------
+        X : array-like
+            Input features
+        y : array-like
+            True labels
+            
+        Returns:
+        --------
+        float : Accuracy score (fraction of correct predictions)
+        """
+        # Ensure both arrays are 1D and have the same length
+        y = np.array(y).flatten()
+        predictions = self.predict(X)
+        predictions = np.array(predictions).flatten()
+        
+        # Handle potential shape mismatches
+        if len(predictions) != len(y):
+            raise ValueError(f"Shape mismatch: predictions has {len(predictions)} elements, "
+                           f"y has {len(y)} elements")
+        
+        return np.mean(predictions == y)
 
     def logloss_score(self, y, p):
         y, p = np.array(y), np.array(p)
@@ -1334,6 +2092,9 @@ class OrthogonalDistanceLogisticRegressionOVR(ODRBase):
         return probabilities
 
     def predict_proba_MC_error(self, X, X_err, Number_of_MC_iterations=1000):
+        if not self.fit_model_:
+            raise ValueError("You need to fit the model first")
+        ODRBase().check_XX(X, X_err)
         proba_MC = []
         for i in range(Number_of_MC_iterations):
             X_MC = np.random.normal(X, X_err)
@@ -1847,7 +2608,21 @@ class OrthogonalDistanceMultinomialLogisticRegression(ODRBase, object):
     def calculate_entropy(self, X, X_err=None):
         """
         Calculates Shannon entropy for predictions.
+        Shannon entropy provides a quantitative measure of prediction 
+        uncertainty that's particularly valuable in scientific applications 
+        where understanding model confidence and reliability is crucial.
+        
         If X_err is provided, it uses the robust sigma-averaged probabilities.
+        High entropy = model is uncertain about predictions
+        Low entropy = model is confident about predictions
+        entropy = -sum(p * log(p) for p in probabilities)
+        
+        Range: Entropy is always non-negative (H ≥ 0)
+        Maximum Value: Maximum entropy occurs when all outcomes are equally 
+            likely
+        Minimum Value: Minimum entropy (0) occurs when one outcome has 
+            probability 1
+        Additivity: For independent systems, entropies add
         """
         if X_err is not None:
             # Use your unique sigma-check mean probabilities
@@ -1893,4 +2668,3 @@ class OrthogonalDistanceMultinomialLogisticRegression(ODRBase, object):
         return model_mean_proba, model_std_err
 
 #########################################################
-
