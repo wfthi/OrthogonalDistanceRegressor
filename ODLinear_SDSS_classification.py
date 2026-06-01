@@ -24,7 +24,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 from astroML.datasets import fetch_imaging_sample
-from ODLinear_fast import compute_mixing_index, OrthogonalDistanceLogisticRegressionOVR, OrthogonalDistanceMultinomialLogisticRegression
+from ODLinear_fast_31May2026 import compute_mixing_index, OrthogonalDistanceLogisticRegressionOVR, OrthogonalDistanceMultinomialLogisticRegression
 from sklearn.neighbors import NearestNeighbors
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from sklearn.preprocessing import FunctionTransformer
